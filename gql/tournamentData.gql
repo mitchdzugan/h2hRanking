@@ -1,0 +1,81 @@
+query GetTournamentData($slug: String!, $pageE: Int!, $pageS: Int!) {
+  event(slug: $slug) {
+    id
+    numEntrants
+    name
+    slug
+    state
+    standings(query: { page: $pageS, perPage: 32 }) {
+      pageInfo {
+        total
+      }
+      nodes {
+        id
+        placement
+        isFinal
+        entrant {
+          id
+        }
+      }
+    }
+    entrants(query: { page: $pageE, perPage: 32 }) {
+      pageInfo {
+        total
+      }
+      nodes {
+        id
+        initialSeedNum
+        participants {
+          gamerTag
+          prefix
+          player {
+            id
+            gamerTag
+            prefix
+            user {
+              genderPronoun
+              name
+              authorizations {
+                type
+                externalUsername
+              }
+              images {
+                url
+                type
+              }
+            }
+          }
+        }
+      }
+    }
+    tournament {
+      id
+      name
+      endAt
+      images {
+        url
+        type
+      }
+    }
+    phaseGroups {
+      id
+      phase {
+        id
+        name
+        phaseOrder
+      }
+      displayIdentifier
+      seeds(query: { page: 0, perPage: 512 }) {
+        pageInfo {
+          total
+        }
+        nodes {
+          groupSeedNum
+          entrant {
+            id
+          }
+        }
+      }
+    }
+  }
+}

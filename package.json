@@ -1,0 +1,16 @@
+{
+  "name": "h2hranking",
+  "version": "1.0.0",
+  "description": "",
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@dz/-": "file:../dz__DOLLAR_SIGN__.LINK.ts",
+    "tsx": "^4.22.4"
+  }
+}
