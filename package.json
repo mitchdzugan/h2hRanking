@@ -11,6 +11,9 @@
   },
   "dependencies": {
     "@dz/-": "file:../dz__DOLLAR_SIGN__.LINK.ts",
+    "challonge": "^2.2.0",
+    "challonge-api-js": "^1.0.2",
+    "simple-challonge-api": "^1.0.1",
     "tsx": "^4.22.4"
   }
 }

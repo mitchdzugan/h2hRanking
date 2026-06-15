@@ -1,6 +1,8 @@
 import { fileURLToPath } from "url";
 import * as $ from "@dz/-";
 import * as N from "@dz/-/node";
+import challonge from "challonge";
+import Challonge from "simple-challonge-api";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = N.path.dirname(__filename);
@@ -9,6 +11,7 @@ const queryDir = N.path.join(__dirname, "..", "gql");
 const cachePath = N.path.join(__dirname, "..", ".gql-cache");
 const apiUrl = `https://api.start.gg/gql/alpha`;
 const authToken = process.env["CLM_STATS_GG_AUTH"];
+const challongeApiKey = "2NxNZaAEJBHW7vGNGCXuVP1fUnBu7wTIcwePHmPX";
 
 const gql = (queryName, vars, gqlOpts = {}) =>
   N.gqlRequest({
@@ -166,6 +169,14 @@ async function main() {
     {},
   );
   console.log(eventData);
+  const challongeClient = challonge.createClient({ apiKey: challongeApiKey });
+  console.log(challongeClient);
+  const client = new Challonge({
+    username: "dz8292",
+    apiKey: challongeApiKey,
+    tournamentID: "tz6op7p6",
+  });
+  console.log(client);
 }
 
 $.execAndExit(main());
