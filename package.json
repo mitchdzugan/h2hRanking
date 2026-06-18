@@ -9,10 +9,12 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "exports": { ".": { "import": "./src/index.js" } },
   "dependencies": {
-    "@dz/-": "file:../dz__DOLLAR_SIGN__.LINK.ts",
+    "@dz/-": "github:mitchdzugan/dz__DOLLAR_SIGN__.ts#add-more-stuff",
     "challonge": "^2.2.0",
     "challonge-api-js": "^1.0.2",
+    "playwright-core": "1.59.1",
     "simple-challonge-api": "^1.0.1",
     "tsx": "^4.22.4"
   }
