@@ -11,7 +11,7 @@ const gql = (queryName, vars, gqlOpts = {}) =>
     ...gqlOpts,
   });
 
-async function qAll(query, constVars, pvSpecs, gqlOpts) {
+export async function qAll(query, constVars, pvSpecs, gqlOpts = {}) {
   const pageVars = {};
   for (const pageVar in pvSpecs) {
     pageVars[pageVar] = 0;
@@ -163,7 +163,7 @@ export async function getGGEventData(slug, gqlOpts = {}) {
         }
         return (() => {
           if (set.displayScore === "DQ") {
-            return wclm === clm1 ? ["-", "DQ"] : ["DQ", "-"];
+            return set.winnerId == slot1.entrant.id ? ["-", "DQ"] : ["DQ", "-"];
           }
           if (!set.displayScore) {
             return ["", ""];
@@ -223,9 +223,14 @@ function mkContext(headless = true) {
 export async function getChallongeEventData(slug, gqlOpts = {}) {
   const challongeId = `CHALLONGE-${slug}`;
   const slugCachePath = N.path.join(gqlOpts.cachePath, `${challongeId}.json`);
-  const cached = await N.fs.slurp(slugCachePath);
-  if (cached) {
-    return cached;
+  if (gqlOpts.networkControl !== N.GQLNetworkControl.forceFetch) {
+    const cached = await N.fs.slurp(slugCachePath);
+    if (cached) {
+      return cached;
+    }
+  }
+  if (gqlOpts.networkControl === N.GQLNetworkControl.cacheOnly) {
+    return undefined;
   }
   const event = { bracketingSite: "challonge" };
   const browser = await mkContext(gqlOpts.headless);
@@ -371,9 +376,15 @@ export async function getChallongeEventData(slug, gqlOpts = {}) {
     const slotName = (slot) => entrants[slot.entrant.id].participants[0].name;
     const slotScore = (slot) =>
       slot.score === undefined ? "" : `${slotName(slot)} ${slot.score}`;
+    set.slots.forEach(
+      (slot) =>
+        (slot.displayScore =
+          slot.score === undefined ? undefined : `${slot.score}`),
+    );
     set.displayScore = set.slots.map(slotScore).join(" - ");
     set.round = { isGrands, isLosers, depth, isDropRound };
     set.roundInd = roundInd;
+    set.doesCount = isComplete;
     const [slot1, slot2] = set.slots;
     const is1w = set.winnerId === slot1.entrant.id;
     const wId = is1w ? slot1.entrant.id : slot2.entrant.id;
@@ -422,8 +433,8 @@ export async function getChallongeEventData(slug, gqlOpts = {}) {
     },
   ];
   event.prPeriod = 14;
-  event.imageUrl = "";
-  event.state = isComplete ? "COMPLETED" : "INCOMPLETE";
+  event.imageUrl = "https://i.imgur.com/7MsdKge.jpeg";
+  event.state = isComplete ? "COMPLETED" : "ACTIVE";
   event.slug = slug;
   event.id = `CHALLONGE-${slug}`;
   event.numEntrants = Object.values(event.entrants).length;
@@ -431,7 +442,7 @@ export async function getChallongeEventData(slug, gqlOpts = {}) {
     id: event.slug,
     name: event.tournamentName,
     endAt: event.date,
-    images: [{ type: "profile", url: event.images }],
+    images: [{ type: "profile", url: event.imageUrl }],
   };
   if (isComplete) {
     await N.fs.spit(slugCachePath, event);
