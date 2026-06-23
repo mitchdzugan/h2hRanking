@@ -1,6 +1,7 @@
+import { WholeHistoryRating } from "whr";
+import { firefox } from "playwright-core";
 import * as $ from "@dz/-";
 import * as N from "@dz/-/node";
-import { firefox } from "playwright-core";
 
 const ggApiUrl = `https://api.start.gg/gql/alpha`;
 const gql = (queryName, vars, gqlOpts = {}) =>
@@ -11,7 +12,7 @@ const gql = (queryName, vars, gqlOpts = {}) =>
     ...gqlOpts,
   });
 
-export async function qAll(query, constVars, pvSpecs, gqlOpts = {}) {
+export async function ggQueryAll(query, constVars, pvSpecs, gqlOpts = {}) {
   const pageVars = {};
   for (const pageVar in pvSpecs) {
     pageVars[pageVar] = 0;
@@ -49,7 +50,7 @@ export async function qAll(query, constVars, pvSpecs, gqlOpts = {}) {
 }
 
 async function tryGetGGDataImpl(slug, q, gqlOpts) {
-  return await qAll(
+  return await ggQueryAll(
     q,
     { slug },
     {
@@ -309,11 +310,16 @@ export async function getChallongeEventData(slug, gqlOpts = {}) {
       const set = { id: setId, slots: [] };
       const playerEls = await matchEl.locator(".match--player").all();
       for (const playerEl of playerEls) {
-        const playerId = await playerEl.getAttribute("data-participant-id");
+        const entrantId = await playerEl.getAttribute("data-participant-id");
         const playerName = await getInnerHTML("title", playerEl);
-        const playerBase = { gamerTag: playerName, prefix: null };
-        entrants[playerId] ||= {
-          id: playerId,
+        const playerId = `CH-${playerName}`;
+        const playerBase = {
+          gamerTag: playerName,
+          name: playerName,
+          prefix: null,
+        };
+        entrants[entrantId] ||= {
+          id: entrantId,
           participants: [
             { ...playerBase, player: { ...playerBase, id: playerId } },
           ],
@@ -321,10 +327,10 @@ export async function getChallongeEventData(slug, gqlOpts = {}) {
         const scoreEl = playerEl.locator(".match--player-score");
         const scoreClass = await scoreEl.getAttribute("class");
         scoreClass.split(" ").forEach((classPart) => {
-          set.winnerId ||= classPart !== "-winner" ? undefined : playerId;
+          set.winnerId ||= classPart !== "-winner" ? undefined : entrantId;
         });
         const score = await getInnerHTMLAsInt(scoreEl);
-        const slot = { entrant: { id: playerId }, score };
+        const slot = { entrant: { id: entrantId }, score };
         set.slots.push(slot);
       }
       sets[setId] = set;
@@ -381,6 +387,10 @@ export async function getChallongeEventData(slug, gqlOpts = {}) {
         (slot.displayScore =
           slot.score === undefined ? undefined : `${slot.score}`),
     );
+    set.slots.forEach(
+      (slot) =>
+        (slot.playerId = entrants[slot.entrant.id].participants[0].player.id),
+    );
     set.displayScore = set.slots.map(slotScore).join(" - ");
     set.round = { isGrands, isLosers, depth, isDropRound };
     set.roundInd = roundInd;
@@ -432,6 +442,50 @@ export async function getChallongeEventData(slug, gqlOpts = {}) {
       sets,
     },
   ];
+
+  function roundNum(set) {
+    const round = set.round;
+    if (round.isGrands) {
+      return 0;
+    }
+    if (round.isLosers) {
+      return 2 * round.depth + (round.isDropRound ? 0 : 1);
+    }
+    return round.depth;
+  }
+
+  let maxRoundNumW = 0;
+  let maxRoundNumL = 0;
+
+  for (const set of Object.values(sets)) {
+    if (set.round.isLosers) {
+      maxRoundNumL = Math.max(maxRoundNumL, roundNum(set));
+    } else {
+      maxRoundNumW = Math.max(maxRoundNumW, roundNum(set));
+    }
+  }
+
+  function roundLabel(set) {
+    const round = set.round;
+    if (round.isGrands) {
+      return round.isLosers ? "Finals (reset)" : "Finals";
+    }
+    if (round.isLosers) {
+      return `Losers Round ${maxRoundNumL - roundNum(set) + 1}`;
+    }
+    if (round.depth === 0) {
+      return isDE ? "Semifinals" : "Finals";
+    }
+    if (!isDE && round.depth === 1) {
+      return "Semifinals";
+    }
+    return `Round ${maxRoundNumW - roundNum(set) + 1}`;
+  }
+
+  for (const set of Object.values(sets)) {
+    set.fullRoundText = roundLabel(set);
+  }
+
   event.prPeriod = 14;
   event.imageUrl = "https://i.imgur.com/7MsdKge.jpeg";
   event.state = isComplete ? "COMPLETED" : "ACTIVE";
@@ -450,32 +504,76 @@ export async function getChallongeEventData(slug, gqlOpts = {}) {
   return event;
 }
 
-/*
-async function main() {
-  const { fileURLToPath } = await import("url");
-  const __filename = fileURLToPath(import.meta.url);
-  const __dirname = N.path.dirname(__filename);
-  const queryDir = N.path.join(__dirname, "..", "gql");
-  const cachePath = N.path.join(__dirname, "..", ".gql-cache");
-  const authToken = process.env["CLM_STATS_GG_AUTH"];
-  const gqlOpts = {
-    cachePath,
-    authToken,
-    queryDir,
-  };
+const _l = (a, fb) => (!a || !a.length ? fb : a[a.length - 1]);
 
-  const eventData = await getGGEventData(
-    "tournament/the-botlane-show-9-unsure/event/melee-singles",
-    gqlOpts,
+export async function calcRankings(eventList, gqlOpts = {}) {
+  const events = await Promise.all(
+    eventList.map(({ slug, isChallonge }) => {
+      console.error("Getting data for", { slug }, "...");
+      return (isChallonge ? getChallongeEventData : getGGEventData)(
+        slug,
+        gqlOpts,
+      );
+    }),
   );
-  console.log(eventData);
-  // console.log(Object.values(eventData.entrants)[0]);
-  // console.log(eventData.phaseGroups[0]);
-  // console.log(Object.values(eventData.phaseGroups[0].sets)[0]);
-  const challongeData = await getChallongeEventData("fgzs2x09", gqlOpts);
-  // const challongeData = await getChallongeEventData("tz6op7p6");
-  console.log(challongeData);
-}
+  events.sort((e1, e2) => e1.date - e2.date);
+  const setGroups = [];
+  const players = {};
+  for (const event of events) {
+    for (const entrant of Object.values(event.entrants)) {
+      const player = entrant.participants[0].player;
+      players[player.id] ||= player;
+      players[player.id].events ||= 0;
+      players[player.id].events++;
+      players[player.id].wins = 0;
+      players[player.id].losses = 0;
+    }
+    setGroups.push([]);
+    for (const phaseGroup of event.phaseGroups) {
+      const sets = Object.values(phaseGroup.sets);
+      sets.sort((s1, s2) => parseInt(s1.id) - parseInt(s2.id));
+      for (const set of sets) {
+        _l(setGroups).push(set);
+      }
+    }
+  }
 
-$.execAndExit(main());
- */
+  const whr = new WholeHistoryRating({ w2: 20 });
+  const whrKey = (playerId) => `player::[ ${playerId} ]`;
+
+  for (const [setGroup, groupNum] of $.withInd(setGroups)) {
+    for (const set of setGroup) {
+      if (!set.doesCount) {
+        continue;
+      }
+      const [wPId, lPId] =
+        set.winnerId === set.slots[0].entrant.id
+          ? [set.slots[0].playerId, set.slots[1].playerId]
+          : [set.slots[1].playerId, set.slots[0].playerId];
+      const wkey = whrKey(wPId);
+      const lkey = whrKey(lPId);
+      players[wPId].wins++;
+      players[lPId].losses++;
+      whr.createGame(wkey, lkey, "B", groupNum, 0);
+    }
+  }
+  whr.iterate(100);
+
+  for (const player of Object.values(players)) {
+    const ratings = whr.ratingsForPlayer(whrKey(player.id));
+    if (!ratings.length) {
+      player.hasRating = false;
+      continue;
+    }
+    player.hasRating = true;
+    player.rating = _l(ratings)[1] + 1000;
+  }
+
+  const ranks = Object.values(players);
+  ranks.sort((p1, p2) => p2.rating - p1.rating);
+
+  return [
+    ...ranks.filter((p) => p.hasRating),
+    ...ranks.filter((p) => !p.hasRating),
+  ];
+}
